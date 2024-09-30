@@ -1,18 +1,18 @@
 import praw
 from prawcore.exceptions import NotFound, Forbidden
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime
 import os
-import json
+import configparser
 
 def authenticate_reddit():
-    f = open('../../reddit_credentials.json')
-    credentials = json.load(f)
-    f.close()
+    config = configparser.ConfigParser()
+    config.read('config.ini')
+    
     return praw.Reddit(
-        client_id = credentials["YOUR_CLIENT_ID"],
-        client_secret = credentials["YOUR_CLIENT_SECRET"],
-        user_agent = credentials["YOUR_USER_AGENT"]
+        client_id=config['Reddit']['client_id'],
+        client_secret=config['Reddit']['client_secret'],
+        user_agent=config['Reddit']['user_agent']
     )
 
 def collect_data(reddit, subreddit_name, language, limit=1000):
@@ -28,50 +28,47 @@ def collect_data(reddit, subreddit_name, language, limit=1000):
                 'score': post.score,
                 'num_comments': post.num_comments,
                 'created_utc': datetime.fromtimestamp(post.created_utc),
-                'language': language
+                'language': language,
+                'subreddit': subreddit_name
             })
         
         return pd.DataFrame(posts)
     except NotFound:
         print(f"Subreddit r/{subreddit_name} not found. Skipping...")
-        return pd.DataFrame()
     except Forbidden:
         print(f"Access to r/{subreddit_name} is forbidden. Skipping...")
-        return pd.DataFrame()
     except Exception as e:
         print(f"An error occurred while collecting data from r/{subreddit_name}: {str(e)}")
-        return pd.DataFrame()
+    return pd.DataFrame()
 
 def main():
     reddit = authenticate_reddit()
     
     subreddits = {
-        'climatechange': 'en',
-        'ClimateActionPlan': 'en',
-        'climateskeptics': 'en',
-        'Klimawandel': 'de',
-        'cambioclimatico': 'es',
-        'changementclimatique': 'fr'
+        'en': ['climatechange', 'ClimateActionPlan', 'climateskeptics', 'ClimateOffensive', 'GlobalWarming', 'ClimateCrisis'],
+        'de': ['Klimawandel', 'umwelt_de'],
+        'es': ['CambioClimatico', 'Medioambiente'],
+        'fr': ['changementclimatique', 'ecologie'],
+        'it': ['cambiamentoclimatico']
     }
     
     all_data = pd.DataFrame()
     
-    for subreddit, language in subreddits.items():
-        print(f"Collecting data from r/{subreddit}...")
-        subreddit_data = collect_data(reddit, subreddit, language)
-        if not subreddit_data.empty:
-            all_data = pd.concat([all_data, subreddit_data], ignore_index=True)
+    for language, subreddit_list in subreddits.items():
+        for subreddit in subreddit_list:
+            print(f"Collecting data from r/{subreddit}...")
+            subreddit_data = collect_data(reddit, subreddit, language)
+            if not subreddit_data.empty:
+                all_data = pd.concat([all_data, subreddit_data], ignore_index=True)
     
     if all_data.empty:
         print("No data collected. Please check your subreddit list and try again.")
         return
 
-    # Create data directory if it doesn't exist
-    os.makedirs('../../data/raw', exist_ok=True)
+    os.makedirs('data/raw', exist_ok=True)
     
-    # Save the collected data
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f'../../data/raw/reddit_climate_data_{timestamp}.csv'
+    filename = f'data/raw/reddit_climate_data_{timestamp}.csv'
     all_data.to_csv(filename, index=False)
     print(f"Data saved to {filename}")
     print(f"Total posts collected: {len(all_data)}")

@@ -1,0 +1,30 @@
+# Data manipulation and analysis
+pandas~=2.2.2
+numpy~=1.26.4
+
+# Machine learning
+scikit-learn~=1.5.1
+
+# Natural Language Processing
+nltk~=3.8.0
+langdetect~=1.0.9
+
+# Progress bars
+tqdm~=4.66.4
+
+# Deep Learning and Transformers
+torch~=2.4.0
+transformers~=4.44.2
+
+# Data collection (if you're using PRAW for Reddit data)
+praw~=7.7.1
+
+# Visualization (if you decide to add charts or graphs)
+matplotlib~=3.9.2
+seaborn~=0.13.0
+
+# Jupyter notebooks (if you're using them for analysis)
+jupyter~=1.1.1
+
+# Add SentencePiece for XLMRobertaTokenizer
+sentencepiece~=0.1.99
