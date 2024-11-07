@@ -17,6 +17,8 @@
   - [5. Technical Architecture](#5-technical-architecture)
     - [5.1. Directory Structure](#51-directory-structure)
     - [5.2. Project Architecture](#52-project-architecture)
+    - [5.3. Core Components](#53-core-components)
+      - [5.3.1. Data Pipeline](#531-data-pipeline)
       - [5.3.2. Model Architecture](#532-model-architecture)
     - [5.3.3. Components](#533-components)
   - [6. Project Steps](#6-project-steps)
@@ -283,14 +285,6 @@ graph TD
         F[data/raw] -->|Processing| G[data/processed]
     end
 ```
-
-```mermaid
-      flowchart TD
-        A[Input Text] --> B[Language Detection]
-        B --> C[Feature Extraction]
-        C --> D[Ensemble Classification]
-        D --> E[Stance Prediction]
-    ```
 
 ### 5.3. Core Components
 
