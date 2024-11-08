@@ -182,10 +182,6 @@ Our approach evolved through several stages:
     client_id = your_client_id
     client_secret = your_client_secret
     user_agent = your_user_agent
-
-    [Data]
-    raw_data_path = data/raw
-    processed_data_path = data/processed
     ```
 
 5. Verify Installation

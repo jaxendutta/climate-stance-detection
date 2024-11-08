@@ -8,6 +8,35 @@ import json
 from time import sleep
 from langdetect import detect
 from tqdm import tqdm
+from halo import Halo
+
+# Global Configuration
+SUBREDDITS = {
+    'en': [
+        'climate',
+        'climatechange',
+        'ClimateActionPlan',
+        'climateskeptics',
+        'ClimateOffensive',
+        'ClimateCrisis',
+        'environment',
+        'environmental_science'
+    ],
+    'de': [
+        'Klimawandel',
+        'umwelt_de'
+    ],
+    'es': [
+        'CambioClimatico',
+        'Medioambiente'
+    ],
+    'fr': [
+        'ecologie'
+    ],
+    'it': [
+        'cambiamentoclimatico'
+    ]
+}
 
 def authenticate_reddit():
     config = configparser.ConfigParser()
@@ -32,54 +61,88 @@ def verify_language(text, expected_language):
     except:
         return (True, 'detection_failed')
 
-def collect_data(reddit, subreddit_name, language, limit=1000, progress_index=None):
+def collect_data(reddit, subreddit_name, language, limit=None, progress_index=None):
     try:
         subreddit = reddit.subreddit(subreddit_name)
         posts = []
         
-        submissions = list(subreddit.hot(limit=limit))
+        print(f"\n[{progress_index}] r/{subreddit_name}")
         
-        prefix = f"[{progress_index}] r/{subreddit_name}"
-        pbar = tqdm(submissions, 
-                   desc=prefix,
-                   unit="posts",
-                   leave=True)
+        # Collect from multiple listing types
+        listing_methods = {
+            'hot': subreddit.hot(limit=None),
+            'new': subreddit.new(limit=None),
+            'top': subreddit.top(limit=None, time_filter='all')
+        }
         
-        for post in pbar:
-            post_data = {
-                'id': post.id,
-                'title': post.title,
-                'body': post.selftext,
-                'score': post.score,
-                'num_comments': post.num_comments,
-                'created_utc': datetime.fromtimestamp(post.created_utc),
-                'language': language,
-                'subreddit': subreddit_name,
-                'collected_at': datetime.now()
-            }
+        for method_name, listing in listing_methods.items():
+            method_posts = []
             
-            post_data['title_length'] = len(post.title)
-            post_data['body_length'] = len(post.selftext)
+            spinner = Halo(
+                text=f'({method_name}): 0 posts',
+                spinner='dots',
+                color='cyan'
+            )
+            spinner.start()
             
-            combined_text = f"{post.title} {post.selftext}"
-            is_verified, verification_status = verify_language(combined_text, language)
-            post_data['language_verified'] = is_verified
-            post_data['verification_status'] = verification_status
-            post_data['total_length'] = len(combined_text.strip())
+            try:
+                for post in listing:
+                    if any(p['id'] == post.id for p in posts):
+                        continue
+                        
+                    post_data = {
+                        'id': post.id,
+                        'title': post.title,
+                        'body': post.selftext,
+                        'score': post.score,
+                        'num_comments': post.num_comments,
+                        'created_utc': datetime.fromtimestamp(post.created_utc),
+                        'language': language,
+                        'subreddit': subreddit_name,
+                        'listing_type': method_name,
+                        'collected_at': datetime.now()
+                    }
+                    
+                    post_data['title_length'] = len(post.title)
+                    post_data['body_length'] = len(post.selftext)
+                    
+                    combined_text = f"{post.title} {post.selftext}"
+                    is_verified, verification_status = verify_language(combined_text, language)
+                    post_data['language_verified'] = is_verified
+                    post_data['verification_status'] = verification_status
+                    post_data['total_length'] = len(combined_text.strip())
+                    
+                    method_posts.append(post_data)
+                    posts.append(post_data)
+                    
+                    spinner.text = f'({method_name}): {len(method_posts)} posts'
+                    
+                    if len(method_posts) % 100 == 0:
+                        sleep(1)
+                
+                spinner.succeed(f'({method_name}): {len(method_posts)} posts collected')
+                
+            except Exception as e:
+                spinner.stop()
+                continue
+            finally:
+                spinner.stop()
             
-            posts.append(post_data)
-            
-            if len(posts) % 100 == 0 and len(posts) > 0:
-                sleep(1)  # Rate limiting
+            sleep(2)
         
-        return pd.DataFrame(posts)
+        if posts:
+            print(f"SUCCESS: {len(posts)} posts collected from r/{subreddit_name}!")
+            return pd.DataFrame(posts)
+        else:
+            print(f"✖ [Error] for r/{subreddit_name}: No posts could be collected")
+            return pd.DataFrame()
     
     except NotFound:
-        print(f"[{progress_index}] r/{subreddit_name}: [ERROR] Subreddit not found")
+        print(f"✖ [Error] for r/{subreddit_name}: Subreddit not found")
     except Forbidden:
-        print(f"[{progress_index}] r/{subreddit_name}: [ERROR] Access forbidden")
+        print(f"✖ [Error] for r/{subreddit_name}: Access forbidden")
     except Exception as e:
-        print(f"[{progress_index}] r/{subreddit_name}: [ERROR] {str(e)}")
+        print(f"✖ [Error] for r/{subreddit_name}: {str(e)}")
     return pd.DataFrame()
 
 def generate_collection_stats(data, start_time, end_time):
@@ -122,21 +185,11 @@ def main():
     start_time = datetime.now()
     reddit = authenticate_reddit()
     
-    subreddits = {
-        'en': ['climatechange', 'ClimateActionPlan', 'climateskeptics', 'ClimateOffensive', 'GlobalWarming', 'ClimateCrisis'],
-        'de': ['Klimawandel', 'umwelt_de'],
-        'es': ['CambioClimatico', 'Medioambiente'],
-        'fr': ['changementclimatique', 'ecologie'],
-        'it': ['cambiamentoclimatico']
-    }
-    
     all_data = pd.DataFrame()
-    total_subreddits = sum(len(subs) for subs in subreddits.values())
+    total_subreddits = sum(len(subs) for subs in SUBREDDITS.values())
     processed = 0
     
-    print()  # Add blank line before progress bars start
-    
-    for language, subreddit_list in subreddits.items():
+    for language, subreddit_list in SUBREDDITS.items():
         for subreddit in subreddit_list:
             processed += 1
             progress_str = f"{processed}/{total_subreddits}"
